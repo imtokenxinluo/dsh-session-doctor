@@ -19,6 +19,16 @@
 用户明确不做：不改 dsh 内核代码（P0 仅文档化）；不装进当前 web profile；现在不 push GitHub；不做 watch/audit-tools 的 v1 实现；不修改任何真实会话数据（验收只用副本）。
 
 ## 验收记录 (2026-09-02)
-- 单元测试 7/7 绿（node --test test/）
+- 单元测试 10/10 绿（node --test）
 - 真实副本验收 3/3：890ef838@115441、1ea23697@43861、49e6040e@326814 scan 精确检出，repair 后 0 失败
 - 干净会话副本（e55beedf 修复后）scan OK：59589 lines / 0 findings
+- 对抗审查探针（890ef838 副本）：scan findings 含 line/seq/type/reason/tool=sftp_mkdir；
+  repair 后 lines/events 不变（7978/7977）；re-repair 幂等 no-op（不重复备份）
+
+### 审查确认的边界（如实记录）
+- AC2 文字"已知 4 个损坏会话"指 2026-09-02 首次扫描状态（含当时已损坏的 e55beedf）；
+  验收时 e55beedf 已修复转作"干净会话报 OK"对照，故真实损坏副本为 3 个 + 1 个干净对照，
+  覆盖 AC2 的两种情形（检出损坏 / 干净 OK）。
+- Failure-mode 2（live 写入并发）：v1 的 scan/repair 面向**冷会话**修复，无显式锁/写者检测；
+  repair 采用"备份 → 临时文件 → rename 替换"，若与活跃 writer 并发可能丢尾部。
+  已在 README 标注为冷会话工具；live 场景的 watch/哨兵属 P1-3 后续项。
