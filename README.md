@@ -18,7 +18,7 @@ DSH 把会话日志存成"逐批追加、独立可解、带校验和的 zstd 帧
 详见同目录 [`PLAN.md`](../dsh-hardening/PLAN.md)（审查与补丁清单，P0 内核
 守卫需 upstream 决策；本仓库交付 P1 的 scan/repair）。
 
-## 能力（v1）
+## 能力（v1 + v1.1）
 
 - **scan** — 遍历一个 sessions 根目录（或单文件），按 DSH 加载路径同款规则
   校验每条事件，报告损坏会话、行号、seq、事件类型、涉及的 tool 名与原因。
@@ -26,6 +26,13 @@ DSH 把会话日志存成"逐批追加、独立可解、带校验和的 zstd 帧
   "tool-result 块 content 为裸字符串"的记录无损包裹成
   `[{type:"text",text:"…"}]`，帧级重写（未损坏帧字节不变）；重写产物会先
   复验 0 失败才落盘。未知损坏形态只报告、不自动修。
+- **watch（v1.1 实时哨兵）** — 订阅 DSH `session/event`，对 live 会话新写入的
+  消息事件**即时**执行 loader 同款校验，违规立刻告警（logger + `onViolation`），
+  坏记录刚产生就被发现，不再等下次加载才炸。
+  - 核心：`src/watch.js`（`createSessionWatcher` / `createSessionSentinel`，纯逻辑可单测）
+  - 插件壳：`src/plugin.js`（cordis 插件，注册进 profile 即全会话生效；默认不装）
+  - 边界：事件在 append 后才发布，watch **不阻止写入**（那属 P0 内核守卫）；
+    live 会话由 writer 占用，watch 只告警不改文件（修复交给冷会话的 repair）。
 
 ## 安装 / 使用（独立包，暂不注册进 profile）
 

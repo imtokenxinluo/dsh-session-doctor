@@ -1,5 +1,21 @@
 # dsh-session-doctor — 需求契约 (doublecheck spec, 2026-09-02)
 
+## v1.1 增补：watch 实时哨兵（2026-09-02 用户确认）
+- Goal 扩展：在 v1（scan/repair）基础上新增 watch——订阅 DSH `session/event`，
+  对 live 会话新写入的 tool/result 等消息事件即时执行 loader 同款形状校验，
+  违规立即告警（logger + onViolation 回调），坏记录刚产生就被发现。
+- Scope：src/watch.js（纯校验核心 + per-session callId→tool 缓存，可单测）、
+  src/plugin.js（cordis 插件壳：ctx.on("session/event"/"session/created") 桥接，
+  装 profile 时使用；本仓库交付但不装 profile）、测试、README 更新。
+- AC：① watch 对好 tool/result 返回 null；② 对字符串 content 的 tool/result
+  返回含 seq/type/reason/tool 的违规；③ 经 tool/call 缓存能解析出 tool 名；
+  ④ 无先例 callId 时仍报告（tool 名可为 undefined）；⑤ 插件壳用假 ctx
+  （记录 on 回调 + logger）可测通；⑥ 全套测试仍绿。
+- 边界（如实）：watch 在 append 后触发，**不阻止写入**（那属 P0 内核）；
+  live 会话被 writer 占用，watch 不自动修文件，只告警（与 repair 冷会话互补）。
+
+---
+
 ## Goal
 在工作区交付一个可开源复用的 DSH 会话维护插件 dsh-session-doctor（JS ESM 单仓，暂不装 profile、不本地改内核），v1 提供 scan（遍历全部会话日志、按读路径同款校验报告损坏点）与 repair（对损坏会话备份并无损修复），并用真实会话副本验证 scan 检出已知坏记录、repair 后加载校验 0 失败。
 

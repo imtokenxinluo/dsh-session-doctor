@@ -15,6 +15,12 @@
     "./repair": {
       "default": "./src/repair.js"
     },
+    "./watch": {
+      "default": "./src/watch.js"
+    },
+    "./plugin": {
+      "default": "./src/plugin.js"
+    },
     "./package.json": "./package.json"
   },
   "bin": {
