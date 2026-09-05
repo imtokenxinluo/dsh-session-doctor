@@ -5,6 +5,11 @@
   "license": "MIT",
   "type": "module",
   "main": "src/index.js",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
   "exports": {
     ".": {
       "default": "./src/index.js"

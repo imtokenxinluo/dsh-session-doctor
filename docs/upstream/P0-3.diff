@@ -1,0 +1,18 @@
+diff --git a/packages/core/session/src/index.ts b/packages/core/session/src/index.ts
+index 59e198d..bc4c16b 100644
+--- a/packages/core/session/src/index.ts
++++ b/packages/core/session/src/index.ts
+@@ -695,6 +695,13 @@ export class Session {
+       data: dataSnapshot,
+       ...(surfaceMetadataSnapshot as { surfaceOp?: unknown; sourceEventSeqs?: unknown }),
+     } as unknown as SessionEvent<T>)
++    // P0-3 write-path fail-fast: enforce the same message-shape invariants the
++    // loader enforces at the seed boundary, so a malformed message can never be
++    // durably committed. It used to fail only on the NEXT load, making the whole
++    // session history unloadable. assertMessageEventShape early-returns for
++    // non-message types, so markers/chunks take no extra path.
++    assertMessageEventShape(event as unknown as Record<string, unknown>,
++      `session append at seq ${event.seq}`)
+     this.surfaceManager.validateNext(event as SessionEvent)
+ 
+     if (entry !== undefined) entry.appending = true

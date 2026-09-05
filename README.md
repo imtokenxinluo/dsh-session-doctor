@@ -6,17 +6,54 @@
 
 ## 背景：为什么要这个工具
 
-DSH 把会话日志存成"逐批追加、独立可解、带校验和的 zstd 帧"。写入路径
-（`Session.append` / `dsh-tools` 的工具结果投影）**从不校验消息形状**，
-形状校验只存在于加载路径——一旦某条记录形状违规，整个会话历史都无法加载
-（`SessionPersistenceCorruptionError`），且除撕裂尾部外没有自动恢复。
+### 一个会"失忆"的会话历史
 
-实际案例（2026-09）：插件 `dsh-ssh-ops` 的 `sftp_*`/`tunnel_*` 工具
-`output.render()` 返回裸字符串，违反 `ContentBlock[]` 契约，导致多次
-"history unavailable … must contain one tool-result block"。本工具即为此而生。
+DSH 把会话日志存成"逐批追加、独立可解、带校验和的 zstd 帧"。**会话历史是
+人与 DSH 之间交换记忆的唯一介质**——它坏一次，人和系统的连续交换就断一次
+（历史不可加载 = 一起失忆）。
 
-详见同目录 [`PLAN.md`](../dsh-hardening/PLAN.md)（审查与补丁清单，P0 内核
-守卫需 upstream 决策；本仓库交付 P1 的 scan/repair）。
+这个工具要解决的，是 DSH 的一个**系统性边界缺陷**，而不只是某个插件写坏了数据：
+
+- **写入路径从不校验消息形状**（`Session.append` 只查 JSON 可序列化；
+  `dsh-tools` 的工具结果投影原样落库）
+- **形状校验只存在于加载路径**（`assertMessageEventShape`）
+- 后果：一条形状违规的记录在**写入时毫无报错**，直到**下次加载**才以
+  `SessionPersistenceCorruptionError` 让**整条会话历史**不可用
+
+### 为什么 DSH 自己发现不了
+
+类型契约 `render(): ContentBlock[]` 写在 TypeScript 里，DSH 自己的工具全部遵守
+——内部闭环永远测不出问题。**第一次暴露必然来自第三方插件**（运行时边界没有
+TS 保护）：2026-09，`dsh-ssh-ops` 的 `sftp_*`/`tunnel_*` 工具 `output.render()`
+返回裸字符串，导致多个会话报 `history unavailable … must contain one
+tool-result block`。这正是开源的意义：外部参与者帮内核找到了它自己发现不了的
+边界 bug。
+
+### 三层防线（本工具是其中一层）
+
+| 防线 | 作用 | 形态 | 状态 |
+|---|---|---|---|
+| 事前（写路径守卫） | render 非数组 → 规范化，坏记录进不了日志 | DSH 内核补丁（P0-1） | 已提交上游 [Discussion #5647](https://github.com/deepseek-ai/deepseek-harness/discussions/5647) |
+| **实时（watch）** | 新写入违规即告警，不等下次加载 | **本插件 v1.1** | ✅ |
+| **事后（scan/repair）** | 扫描+备份+无损修复已坏会话 | **本插件 v1** | ✅ |
+
+内核补丁（P0-1/P0-3）的完整 before/after、测试与 Agent Note 见本仓库
+[`docs/upstream/`](docs/upstream/)，系统审查全貌见
+[`docs/PATCHES.md`](docs/PATCHES.md)（补丁实施手册）与
+[`docs/PLAN.md`](docs/PLAN.md)（补丁分层清单）。
+
+> 补丁材料同时在 DSH 上游公开讨论：
+> [deepseek-harness Discussion #5647](https://github.com/deepseek-ai/deepseek-harness/discussions/5647)
+> （官方暂不接受外部 PR，缺陷已按官方渠道上报）。
+
+## 什么时候用它
+
+| 场景 | 做什么 |
+|---|---|
+| GUI 报 "history unavailable … must contain one tool-result block" | `scan-file <该会话.jsonl.zstd>` 确认 → `repair <file>` 无损修复 |
+| 想预防：担心哪个插件又在写坏记录 | 装 profile 让 watch 生效，或 `scan <sessions-root>` 定期体检 |
+| DSH 升级后怀疑旧补丁/旧会话有问题 | 按 [`docs/PATCHES.md`](docs/PATCHES.md) §5 核对清单重打 |
+| 想找哪个插件违反了 render 契约 | `scripts/audit-render-contract.mjs <插件 src/lib>` |
 
 ## 能力（v1 + v1.1）
 

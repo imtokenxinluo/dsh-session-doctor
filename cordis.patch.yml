@@ -1,0 +1,11 @@
+# dsh-session-doctor bundle patch: mount the live session sentinel (watch)
+# as one row in the profile composition. To enable in a profile, add
+# "dsh-session-doctor" to the profile's dsh.profile.bundles (the package's
+# dsh.bundle.patch declaration applies this file automatically).
+#
+# The entry imports the package default export (see src/index.js), which is
+# the cordis plugin { name, apply } for the watch sentinel. It subscribes to
+# session/event and warns the instant a loader-mirror violation is written.
+- insert:
+    - id: dsh-session-doctor
+      name: 'dsh-session-doctor'

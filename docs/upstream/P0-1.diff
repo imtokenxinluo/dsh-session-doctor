@@ -1,0 +1,38 @@
+diff --git a/packages/core/tools/src/index.ts b/packages/core/tools/src/index.ts
+index 6c1711d..18bf523 100644
+--- a/packages/core/tools/src/index.ts
++++ b/packages/core/tools/src/index.ts
+@@ -533,6 +533,17 @@ function snapshotProjection<T>(toolName: string, projector: 'render' | 'presenta
+   }
+ }
+ 
++/** Coerce one tool render projection to a valid ContentBlock[] before durable
++ * recording. Arrays pass through untouched; a bare string is wrapped as a
++ * text block verbatim; any other JSON value is stringified. A render that
++ * returns non-ContentBlock[] is a plugin contract violation, so also warn. */
++function normalizeRenderedContent(toolName: string, rendered: JsonValue): ContentBlock[] {
++  if (Array.isArray(rendered)) return rendered as ContentBlock[]
++  const text = typeof rendered === 'string' ? rendered : JSON.stringify(rendered)
++  console.warn(`tool "${toolName}" output.render() returned non-ContentBlock[] (${typeof rendered}); wrapping as a text block. Fix the plugin's output.render to return ContentBlock[].`)
++  return [{ type: 'text', text }]
++}
++
+ /** Snapshot one body or policy value into the canonical invalid-output failure class. */
+ function snapshotToolValue(toolName: string, candidate: unknown): JsonValue {
+   try {
+@@ -1792,7 +1803,14 @@ export class ToolRuntime extends Service {
+     } catch (error: unknown) {
+       throw projectionError(tool.name, 'render', error)
+     }
+-    const content = snapshotProjection(tool.name, 'render', rendered)
++    const projected = snapshotProjection(tool.name, 'render', rendered)
++    // P0-1 write-path guard: render() is typed ContentBlock[] but nothing
++    // enforces that at runtime. A contract-violating plugin (e.g. render
++    // returning a bare string) would otherwise persist a tool/result whose
++    // block content is not an array, which the session loader rejects on the
++    // NEXT load and makes the whole session history unloadable. Normalize
++    // here so a bad render can never poison the log; warn the plugin author.
++    const content = normalizeRenderedContent(tool.name, projected)
+     let meta: JsonValue | undefined
+     if (exec.parent === undefined && tool.output.presentationMeta !== undefined) {
+       let projected: JsonValue
