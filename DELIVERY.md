@@ -57,3 +57,61 @@
   - test/（scan/repair/cli，10 tests）、scripts/verify-real.mjs、scripts/review-probe.mjs
   - README.md / LICENSE(MIT) / SPEC.md
 - `D:\tool\claude_code\dsh-hardening\PLAN.md`（审查与补丁清单：P0 内核 / P1 插件 / P2 生态）
+
+---
+
+# v1.2 blame 事故归因 — Delivery Record
+
+> 2026-09-06. Verdict: **green**（spec 记录 + red/green 时间线 + 真实事故验收 +
+> 对抗审查；独立 per-dimension verify 通道如常未能执行，不作 verified 宣称）。
+
+## Spec（契约摘要，完整版见 SPEC.md v1.2 增补节）
+
+- **Goal**：新增 blame——回答"浏览器/软件/DSH 突然关闭是否由大模型自己调用工具
+  造成"，0.2.0 发布。
+- **AC**：① 双重证据判定（危险命令 + 紧随中断 ⇒ agent-caused）；② 只危险无中断 /
+  只中断无危险 均不归因（后者标 external）；③ 三类危险模式；④ 真实自杀会话副本
+  能定位 21:08:28 pwsh 调用；⑤ 干净会话 no-accident；⑥ torn tail 显式报告；
+  ⑦ node --test 全绿；⑧ 真实验证只在副本。
+- **Non-goals**：不改内核/其它插件、不动 scan/repair/watch、不做模型工具注册、
+  不发 npm、不改 awesome（用户另说时再做）、blame 只读绝不改会话文件。
+
+## 测试时间线（red → green）
+
+| 阶段 | 证据 |
+|---|---|
+| red | blame.test.js 首个实现缺失（ERR_MODULE_NOT_FOUND）→ 放 stub 后行为 red（7 测 4 fail）|
+| green | src/blame.js 实现 → blame.test.js 7/7；全量 30/30 |
+| red | cli.test.js blame 端到端（3 fail：CLI 未实现 + exit-code/大小写预期错）|
+| green | CLI blame + 修正测试预期（accident→exit 1，大写输出）→ cli 5/5，全量 33/33 |
+| red | torn-tail 测试（实现缺 tornTail 字段）→ 8 测 1 fail |
+| green | blame.js 加 scanFrames torn 检测 → 全量 **34/34 pass** |
+| green | 真实事故副本验收：scheduled-run-3fd818d1 副本 → AGENT-CAUSED，suspect = 21:08:28 pwsh `call_00_uZEnOVXTh4ythv4NwqeF3377`（Stop-Process dsh + Start-Process 重启），行/seq/时间全中 |
+| green | 全真实目录 blame：19 会话 = 2 accident（每日荐股 + e55beedf 8-16 历史自杀 `Stop-Process -Id 3404`）+ 17 clean/external，无干净会话误报 |
+
+## 对抗审查（adversary review，本会话手动执行）
+
+- **异议 1（torn tail 漏报）**：进程被杀时最后写入被截断 → decodeFrames 丢尾部，
+  blame 会静默缺证据 → **已修**：scanFrames 检测 tornStart，报告显式标注
+  "log ends in a torn frame … last evidence batch is missing"（红→绿闭环）。
+- **异议 2（杀 chrome 误伤）**：构造"Stop-Process chrome + 中断"会判 agent-caused。
+  分析：真实组合中杀 chrome 只断 GUI 不断 dsh 会话（今日 `agent-browser close --all`
+  后会话正常完成即证据），能触发 interrupted 的自杀必然杀到 dsh 自身——双重证据
+  在真实组合下误伤面极小，维持现状，如实记录。
+- **异议 3（live 会话以 tool/call 结尾）**：无 interrupted 标记 → no-accident，
+  不误报进行中会话（真实 2 个 live 会话验证）。
+
+## 验证说明（如实）
+
+- `doublecheck_report` 本会话返回 green，但独立 verify 通道未执行 → 不作 verified 宣称。
+- 真实验收全在副本（blame-probe 临时副本，已清理），未触碰任何真实会话文件。
+
+## 交付物清单
+
+- commit `6ec8110`（tag `v0.2.0`，已 push origin/main + v0.2.0）
+  - src/blame.js（blameSessionFile / blameSessionRoot）
+  - bin/dsh-session-doctor.js（CLI blame <file|root>，accident → exit 1）
+  - src/index.js / package.json（导出 ./blame，version 0.2.0）
+  - test/blame.test.js（8 测）+ test/cli.test.js（+3 端到端）+ test/helpers.mjs（shellCall / interruptedToolResult / turnEnd / frame）
+  - README.md（blame 章节 + 使用表）、SPEC.md（v1.2 增补节）
+- 全量测试 **34/34 pass**（node --test）
