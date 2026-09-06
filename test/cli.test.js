@@ -2,17 +2,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, existsSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildSessionLog, toolResult, toolCall, userMessage, stepStart } from "./helpers.mjs";
+import { buildSessionLog, toolResult, toolCall, userMessage, stepStart, shellCall, interruptedToolResult, turnEnd } from "./helpers.mjs";
 
 const BIN = fileURLToPath(new URL("../bin/dsh-session-doctor.js", import.meta.url));
 
 async function withDir(fn) {
   const dir = mkdtempSync(path.join(tmpdir(), "dsh-doctor-cli-"));
-  try { await fn(dir); } finally { rmSync(dir, { recursive: true, force: true }); }
+  try { return await fn(dir); } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
 function run(args) {
@@ -78,5 +78,67 @@ test("cli: scan-file on a clean file reports OK", async () => {
     const r = run(["scan-file", file]);
     assert.equal(r.code, 0, r.out);
     assert.match(r.out, /^OK /);
+  });
+});
+
+test("cli: blame on a suicide artifact exits 0 and names the kill call", async () => {
+  await withDir(async (dir) => {
+    const file = path.join(dir, "session.jsonl.zstd");
+    writeFileSync(file, buildSessionLog({
+      id: "session-suicide",
+      events: [
+        stepStart({ seq: 0 }),
+        userMessage({ seq: 1 }),
+        shellCall({ seq: 2, callId: "kill1", name: "pwsh", command: "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'dsh' } | Stop-Process -Force" }),
+        interruptedToolResult({ seq: 3, callId: "kill1" }),
+        turnEnd({ seq: 4, reasonKind: "interrupted" })
+      ]
+    }));
+    const r = run(["blame", file]);
+    assert.equal(r.code, 1, "accident should exit non-zero (like scan corrupt)");
+    assert.match(r.out, /AGENT-CAUSED/);
+    assert.match(r.out, /kill1/);
+    assert.match(r.out, /Stop-Process/);
+    assert.match(r.out, /kill-process/);
+  });
+});
+
+test("cli: blame on a clean artifact reports no accident", async () => {
+  await withDir(async (dir) => {
+    const file = path.join(dir, "session.jsonl.zstd");
+    writeFileSync(file, buildSessionLog({
+      id: "session-clean",
+      events: [
+        stepStart({ seq: 0 }),
+        userMessage({ seq: 1 }),
+        toolCall({ seq: 2, callId: "c", name: "demo" }),
+        toolResult({ seq: 3, callId: "c", content: [{ type: "text", text: "ok" }] }),
+        turnEnd({ seq: 4, reasonKind: "completed" })
+      ]
+    }));
+    const r = run(["blame", file]);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /NO-ACCIDENT/);
+  });
+});
+
+test("cli: blame on a sessions root reports per-session verdicts", async () => {
+  await withDir(async (dir) => {
+    const nested = path.join(dir, "sessions", "s1");
+    await import("node:fs/promises").then((fs) => fs.mkdir(nested, { recursive: true }));
+    writeFileSync(path.join(nested, "session.jsonl.zstd"), buildSessionLog({
+      id: "session-s1",
+      events: [
+        stepStart({ seq: 0 }),
+        userMessage({ seq: 1 }),
+        shellCall({ seq: 2, callId: "k", name: "pwsh", command: "taskkill /IM node.exe /F" }),
+        interruptedToolResult({ seq: 3, callId: "k" }),
+        turnEnd({ seq: 4, reasonKind: "interrupted" })
+      ]
+    }));
+    const r = run(["blame", path.join(dir, "sessions")]);
+    assert.equal(r.code, 1, "accident in root should exit non-zero");
+    assert.match(r.out, /AGENT-CAUSED/);
+    assert.match(r.out, /scanned=1 accident=1/);
   });
 });

@@ -1,4 +1,24 @@
-# dsh-session-doctor — 需求契约 (doublecheck spec, 2026-09-02)
+# dsh-session-doctor — 需求契约 (doublecheck spec)
+
+## v1.2 增补：blame 事故归因（2026-09-06 用户确认）
+- Goal：新增 blame 能力——回答"浏览器/软件/DSH 突然关闭是否由大模型自己调用
+  工具造成"（会话尸检），bump 0.2.0 发布。
+- Scope：src/blame.js（纯逻辑可单测）、bin CLI blame <file|root>（单会话尸检 /
+  目录扫描汇总）、test/blame.test.js、README/SPEC 更新、version 0.2.0、git tag 并 push。
+  复用现有 zstd/scan 解码。不做模型工具注册、不发 npm、不动 awesome（用户另说时再做）。
+- AC：① 双重证据判定——断点前**危险命令命中 + 紧随中断**才算 agent-caused；
+  ② 只危险无中断 → 不归因；只中断无危险 → external；③ 危险模式三类：
+  kill-process（taskkill/Stop-Process/pkill/kill/Stop-Service/net stop）、
+  browser-close（agent-browser close）、self-restart（杀 dsh/node 后重启）；
+  ④ 真实每日荐股自杀会话副本能定位 21:08:28 pwsh 调用（Stop-Process dsh）并归因；
+  ⑤ 干净会话 no-accident；⑥ torn tail 显式报告（证据不全提示）；
+  ⑦ node --test 全绿；⑧ 真实验证只在副本上。
+- 边界（如实）：只读分析绝不改文件；归因基于已落盘完整帧（torn tail 丢弃但显式
+  标注）；live 会话以 tool/call 结尾（无 result）不算中断——无 interrupted 标记即
+  no-accident，不误报进行中会话；agent-browser close 关的是自动化 daemon 会话，
+  不影响 dsh → 会话正常完成即不归因（双重证据自然排除）。
+
+---
 
 ## v1.1 增补：watch 实时哨兵（2026-09-02 用户确认）
 - Goal 扩展：在 v1（scan/repair）基础上新增 watch——订阅 DSH `session/event`，

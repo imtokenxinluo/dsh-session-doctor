@@ -33,8 +33,44 @@ export function toolResult({ seq, callId = "call_1", content, isError = false })
   };
 }
 
-export function toolCall({ seq, callId = "call_1", name = "demo_tool" }) {
-  return { type: "tool/call", seq, time: 1700000000000 + seq, data: { turn: 1, step: 1, callId, name, arguments: "{}" } };
+export function toolCall({ seq, callId = "call_1", name = "demo_tool", arguments: args = "{}" }) {
+  return { type: "tool/call", seq, time: 1700000000000 + seq, data: { turn: 1, step: 1, callId, name, arguments: args } };
+}
+
+/** tool/call shaped like the real pwsh/bash calls: JSON arguments with a command field. */
+export function shellCall({ seq, callId = "call_1", name = "pwsh", command }) {
+  return toolCall({ seq, callId, name, arguments: JSON.stringify({ command }) });
+}
+
+/** tool/result carrying the loader's "interrupted after it was recorded" error. */
+export function interruptedToolResult({ seq, callId = "call_1" }) {
+  return {
+    type: "tool/result",
+    seq,
+    time: 1700000000000 + seq,
+    data: {
+      turn: 1,
+      step: 1,
+      message: {
+        source: { kind: "tool", callId },
+        content: [{
+          type: "tool-result",
+          toolCallId: callId,
+          isError: true,
+          content: [{ type: "text", text: "The tool call was interrupted after it was recorded, but no result was durably recorded. Its outcome is unknown." }]
+        }],
+        role: "user",
+        id: `msg-${seq}`
+      }
+    },
+    surfaceOp: "append",
+    sourceEventSeqs: [seq - 1]
+  };
+}
+
+/** turn/end with a reason kind (completed | interrupted). */
+export function turnEnd({ seq, reasonKind = "completed" }) {
+  return { type: "turn/end", seq, time: 1700000000000 + seq, data: { turn: 1, reason: { kind: reasonKind } } };
 }
 
 export function userMessage({ seq, text = "hello" }) {

@@ -10,6 +10,7 @@ export { repairSessionFile, patchToolResultLine } from "./repair.js";
 export { validateEvent, validateLog } from "./validate.js";
 export { createSessionWatcher, createSessionSentinel } from "./watch.js";
 export { scanFrames, decodeFrames, encodeFrames, splitLines } from "./zstd.js";
+export { blameSessionFile, blameSessionRoot } from "./blame.js";
 
 import plugin from "./plugin.js";
 export default plugin;
