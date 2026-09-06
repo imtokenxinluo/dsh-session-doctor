@@ -32,7 +32,7 @@
     }
   },
   "bin": {
-    "dsh-session-doctor": "./bin/dsh-session-doctor.js"
+    "dsh-session-doctor": "bin/dsh-session-doctor.js"
   },
   "files": [
     "src",
