@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-doctor",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Session doctor for DeepSeek Harness: scan stored session logs for load-blocking corruption (loader-mirror validation) and losslessly repair the supported shape drift (bare-string tool-result content → text blocks), with per-file backup. 会话体检与修复插件。",
   "license": "MIT",
   "type": "module",

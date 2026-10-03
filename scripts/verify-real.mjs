@@ -33,18 +33,29 @@ async function main() {
       await cp(srcDir, dstDir, { recursive: true });
       const file = path.join(dstDir, "session.jsonl.zstd");
       console.log(`\n== ${id} ==`);
+      // 0. 如果这个会话已经被 doctor 修好了，就用它自己的修复前备份做样本 ——
+      //    否则这条真实验收会随着数据被修好而永久失效（EXPECTED 是 2026-09-02 审计值）。
+      const baks = (await readdir(dstDir)).filter((n) => n.startsWith("session.jsonl.zstd.") && n.endsWith(".bak"));
+      let sample = file;
+      if (baks.length > 0) {
+        const cur = await scanSessionFile(file);
+        if (cur.ok) {
+          sample = path.join(dstDir, baks.sort().pop());
+          console.log(`  (live artifact already clean -> using pre-repair backup ${path.basename(sample)})`);
+        }
+      }
       // 1. scan must detect the exact bad seqs
-      const scan = await scanSessionFile(file);
+      const scan = await scanSessionFile(sample);
       const foundSeqs = scan.findings.map((f) => f.seq).sort((a, b) => a - b);
       const ok = JSON.stringify(foundSeqs) === JSON.stringify([...badSeqs].sort((a, b) => a - b));
       console.log(`scan ok=${scan.ok} foundSeqs=[${foundSeqs}] expected=[${badSeqs}] ${ok ? "MATCH" : "MISMATCH!"}`);
       if (!ok) { console.log("  findings:", JSON.stringify(scan.findings, null, 2)); continue; }
       checked++;
-      // 2. repair the copy
-      const repair = await repairSessionFile(file);
+      // 2. repair the copy (同一份样本：scan -> repair -> 再 scan，链路才完整)
+      const repair = await repairSessionFile(sample);
       console.log(`repair patchedSeqs=[${repair.patchedSeqs}] backup=${path.basename(repair.backupPath ?? "")}`);
       // 3. post-repair scan must be clean
-      const after = await scanSessionFile(file);
+      const after = await scanSessionFile(sample);
       console.log(`post-repair scan ok=${after.ok} findings=${after.findings.length}`);
       if (after.ok) repaired++;
     }

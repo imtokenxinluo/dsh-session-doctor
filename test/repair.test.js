@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { buildSessionLog, toolResult, toolCall, userMessage, stepStart } from "./helpers.mjs";
-import { repairSessionFile } from "../src/repair.js";
+import { repairSessionFile, patchToolResultLine } from "../src/repair.js";
 import { scanSessionFile } from "../src/scan.js";
 
 async function withDir(fn) {
@@ -91,4 +91,75 @@ test("repair is a no-op (no backup, unchanged) when nothing to fix", async () =>
 
 test("repair refuses a missing file with a clear error", async () => {
   await assert.rejects(() => repairSessionFile("Z:\\no\\such\\file.jsonl.zstd"), /read/i);
+});
+
+// ── 同一约束的另外两种违反形态 ────────────────────────────────────────────────
+// loader 要求 `tool-result` 块的 `content` 必须是数组（validate.js:59）。违反它的形态有三种，
+// 其中第一种（裸字符串）来自 dsh-ssh-ops 的真实事故；下面两种是**防御性扩展** ——
+// 它们同样能无损修复（内容的每一个字都保留），但在真实数据里尚未观察到。
+// 用纯函数 patchToolResultLine 直接断言，避免把文件/压缩搅进来。
+test("patch: single object content is wrapped into an array, content untouched", () => {
+  const inner = { type: "text", text: "file body" };
+  const line = JSON.stringify(toolResult({ seq: 1, callId: "call_b", content: inner }));
+  const result = patchToolResultLine(line);
+  assert.equal(result.patched, true, "object content must be repairable");
+  const ev = JSON.parse(result.line);
+  assert.deepEqual(ev.data.message.content[0].content, [inner], "wrapped, not altered");
+  assert.equal(ev.data.message.content[0].toolCallId, "call_b", "toolCallId preserved");
+});
+
+test("patch: null content becomes an empty array", () => {
+  const line = JSON.stringify(toolResult({ seq: 2, callId: "call_c", content: null }));
+  const result = patchToolResultLine(line);
+  assert.equal(result.patched, true, "null content must be repairable");
+  const ev = JSON.parse(result.line);
+  assert.deepEqual(ev.data.message.content[0].content, [], "no fabricated text block");
+});
+
+test("patch: missing content becomes an empty array", () => {
+  const ev0 = toolResult({ seq: 3, callId: "call_d", content: "x" });
+  delete ev0.data.message.content[0].content;
+  const result = patchToolResultLine(JSON.stringify(ev0));
+  assert.equal(result.patched, true, "absent content must be repairable");
+  const ev = JSON.parse(result.line);
+  assert.deepEqual(ev.data.message.content[0].content, []);
+});
+
+test("patch: an already-valid array content is left alone", () => {
+  const line = JSON.stringify(toolResult({ seq: 4, callId: "call_e", content: [{ type: "text", text: "ok" }] }));
+  const result = patchToolResultLine(line);
+  assert.equal(result.patched, false, "valid content must not be rewritten");
+  assert.equal(result.line, line, "line returned byte-identical");
+});
+
+test("patch: unsupported scalars are reported, never guessed", () => {
+  for (const bad of [42, true]) {
+    const line = JSON.stringify(toolResult({ seq: 5, callId: "call_f", content: bad }));
+    const result = patchToolResultLine(line);
+    assert.equal(result.patched, false, `content=${JSON.stringify(bad)} must not be auto-fixed`);
+  }
+});
+
+test("repair end-to-end: object and null content in one file both get fixed", async () => {
+  await withDir(async (dir) => {
+    const file = path.join(dir, "session.jsonl.zstd");
+    const original = buildSessionLog({
+      id: "session-mixed-shapes",
+      events: [
+        stepStart({ seq: 0 }),
+        toolCall({ seq: 1, callId: "call_x", name: "read_file" }),
+        toolResult({ seq: 2, callId: "call_x", content: { type: "text", text: "obj body" } }),
+        toolResult({ seq: 3, callId: "call_x", content: null }),
+      ],
+    });
+    writeFileSync(file, original);
+
+    const result = await repairSessionFile(file);
+    assert.deepEqual(result.patchedSeqs, [2, 3], "both new shapes repaired");
+    assert.ok(result.backupPath && existsSync(result.backupPath), "backup written first");
+    assert.equal(readFileSync(result.backupPath).equals(original), true, "backup equals original");
+
+    const report = await scanSessionFile(file);
+    assert.equal(report.ok, true, `expected clean after repair, got ${JSON.stringify(report.findings)}`);
+  });
 });

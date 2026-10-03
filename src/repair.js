@@ -20,7 +20,18 @@ import { zstdDecompressSync, zstdCompressSync } from "node:zlib";
 import { CHECKSUM_OPTIONS } from "./zstd.js";
 
 /**
- * Patch one parsed tool/result event if it carries the supported defect.
+ * Patch one parsed tool/result event if it carries a supported defect.
+ *
+ * The loader requires the `tool-result` block's `content` to be an array
+ * (validate.js mirrors it). Three shapes violate that, all repairable without
+ * inventing or dropping a single character:
+ *   1. bare string  -> [{ type: "text", text }]                 (real incident:
+ *      dsh-ssh-ops render-contract bug)
+ *   2. null/absent  -> []                                       (defensive)
+ *   3. single object -> [object]                                (defensive)
+ * Anything else (numbers, booleans, malformed blocks) is left untouched and
+ * reported by scan — guessing there would risk corrupting a readable log.
+ *
  * @returns {{ line: string, patched: boolean, seq?: number }}
  */
 export function patchToolResultLine(line) {
@@ -29,12 +40,23 @@ export function patchToolResultLine(line) {
   if (ev.type !== "tool/result") return { line, patched: false };
   const msg = ev.data?.message;
   const block = msg && Array.isArray(msg.content) ? msg.content[0] : undefined;
-  if (!block || typeof block !== "object" || block.type !== "tool-result" ||
-      typeof block.content !== "string") {
+  if (!block || typeof block !== "object" || block.type !== "tool-result") {
     return { line, patched: false };
   }
-  const text = block.content;
-  const ordered = { type: "tool-result", toolCallId: block.toolCallId, content: [{ type: "text", text }] };
+  const inner = block.content;
+  let content;
+  if (typeof inner === "string") {
+    content = [{ type: "text", text: inner }];
+  } else if (inner === null || inner === undefined) {
+    content = [];
+  } else if (Array.isArray(inner)) {
+    return { line, patched: false };
+  } else if (typeof inner === "object") {
+    content = [inner];
+  } else {
+    return { line, patched: false };
+  }
+  const ordered = { type: "tool-result", toolCallId: block.toolCallId, content };
   if (block.isError !== undefined) ordered.isError = block.isError;
   msg.content = [ordered];
   return { line: JSON.stringify(ev), patched: true, seq: ev.seq };
