@@ -29,6 +29,9 @@
     "./package.json": "./package.json",
     "./blame": {
       "default": "./src/blame.js"
+    },
+    "./safeguard": {
+      "default": "./src/safeguard.js"
     }
   },
   "bin": {
