@@ -7,7 +7,10 @@
 //
 // 边界：本模块自己不决定扫描哪个目录（由 plugin 把 root 解析好传进来），
 // 也不知道 DSH 的任何内部结构，纯粹是「请求 → 结果」。
-import { scanSessionRoot, repairSessionFile } from "./index.js";
+// 直接从源头模块导入：index.js 会 re-export plugin.js，而 plugin.js 又要用本模块，
+// 经 index.js 就会形成循环（表现为 "Cannot access 'plugin' before initialization"）。
+import { scanSessionRoot } from "./scan.js";
+import { repairSessionFile } from "./repair.js";
 
 export const ROUTE_PREFIX = "/session-doctor";
 export const REPORT_PATH = `${ROUTE_PREFIX}/report`;
