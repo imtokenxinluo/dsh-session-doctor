@@ -125,6 +125,12 @@ AGENT-CAUSED  ...\scheduled-run-3fd818d1-...\session.jsonl.zstd
   `POST /session-doctor/repair` 必须由你点一次 —— 界面不会背着你改文件。
   面板只做宿主已经会做的事，判断依据与 CLI 完全同源。
 
+> ⚠️ **版本要求（别踩）**：面板与 `safeguard` 命令是 **0.2.2 起**才有。
+> **0.2.1 及更早**装进 profile 后**只有实时哨兵**（监听 `session/event` 告警），
+> 既没有设置页面板、也没有 `/session-doctor/*` 路由 —— CLI 的 `scan` / `repair` / `blame` 照常可用。
+> 判断自己装的是哪一版：看 `node_modules/dsh-session-doctor/package.json` 的 `version`，
+> 或看该目录下有没有 `lib/client.js`（有 = 含面板）。
+
 ## 安装 / 使用（独立包，暂不注册进 profile）
 
 ```bash
