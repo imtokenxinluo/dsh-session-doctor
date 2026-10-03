@@ -115,6 +115,10 @@ AGENT-CAUSED  ...\scheduled-run-3fd818d1-...\session.jsonl.zstd
   危险模式匹配 + 双重证据判定（agent-caused / external / no-accident），
   只读分析，回答"突然关闭是不是大模型干的"。
 
+> 📖 **完整的损坏形态目录**：`docs/DEFECT-CATALOG.md` —— 把 loader 的 **14 条加载期约束**
+> 逐条列出，标明**哪些能无损修、哪些只报告、以及为什么不修**（含"补齐后是否唯一合理"的判定原则）。
+> 想知道"这条日志为什么打不开、能不能救"，先看它。
+
 ## 安装 / 使用（独立包，暂不注册进 profile）
 
 ```bash

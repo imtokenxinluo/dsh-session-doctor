@@ -40,7 +40,8 @@
     "cordis.patch.yml",
     "README.md",
     "LICENSE",
-    "SPEC.md"
+    "SPEC.md",
+    "docs/DEFECT-CATALOG.md"
   ],
   "scripts": {
     "test": "node --test",
