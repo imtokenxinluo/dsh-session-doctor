@@ -5,6 +5,7 @@
 //   repair <file> [--dry-run]  back up + losslessly repair one artifact
 //   blame <file|root>       attribute an abrupt stop: did an agent tool call kill it?
 import { scanSessionFile, scanSessionRoot, repairSessionFile, blameSessionFile, blameSessionRoot } from "../src/index.js";
+import { safeguard, measureTree } from "../src/safeguard.js";
 
 function usage() {
   console.log(`dsh-session-doctor
@@ -27,6 +28,12 @@ usage:
       unexpectedly): does the log show the model itself called a tool that
       killed the process? One file = single-session postmortem; a sessions
       root = per-session verdict summary. Read-only.
+
+  dsh-session-doctor safeguard <root> --backup-to <dir> [--apply]
+      一条命令走完「冷备 → 体检 → 修复 → 回读校验」：
+      先把整棵 sessions 树冷备到 <dir>（逐文件 sha256 校验，**失败即中止，绝不进入修复**），
+      再扫描、逐个修复损坏会话（每个文件仍各有 .bak），最后重扫确认 0 失败。
+      默认 dry-run：只报告将备份多少数据、将修哪些文件。加 --apply 才真正执行。
 `);
 }
 
@@ -119,6 +126,37 @@ async function main() {
         const r = await blameSessionFile(target);
         printBlame(r);
         if (r.accident) process.exitCode = 1;
+      }
+      return;
+    }
+    case "safeguard": {
+      const root = rest[0];
+      if (!root) return usage();
+      const flags = rest.slice(1);
+      const bi = flags.indexOf("--backup-to");
+      const backupDir = bi >= 0 ? flags[bi + 1] : undefined;
+      const apply = flags.includes("--apply");
+      if (bi >= 0 && !backupDir) {
+        console.error("safeguard: --backup-to 后面要跟一个目录");
+        process.exitCode = 2;
+        return;
+      }
+      const r = await safeguard(root, { backupDir, apply, log: (m) => console.log(`  ${m}`) });
+      console.log("");
+      if (r.stoppedAt === "no-backup-dir" || r.stoppedAt === "dry-run") {
+        console.log(`未执行任何写操作（${r.stoppedAt}）。`);
+        return;
+      }
+      if (r.stoppedAt === "backup-failed") {
+        console.error(`已在冷备阶段中止，未修复任何文件：${r.backupError}`);
+        process.exitCode = 1;
+        return;
+      }
+      console.log(`冷备：${r.backup.files} 文件 → ${r.backup.manifestPath}`);
+      console.log(`修复：${r.repaired.length} 个文件`);
+      if (!r.ok) {
+        console.error(`回读校验未通过：仍有 ${r.after.corrupt} 个损坏会话`);
+        process.exitCode = 1;
       }
       return;
     }

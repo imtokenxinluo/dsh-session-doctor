@@ -130,6 +130,32 @@ dsh-session-doctor repair <file> [--dry-run]
 dsh-session-doctor blame <file|root>       # 事故归因：突然关闭是不是 agent 干的
 ```
 
+### 一条命令：冷备 → 体检 → 修复 → 回读校验
+
+```bash
+# 先 dry-run：只报告要备份多少、要修哪些（不写任何东西）
+dsh-session-doctor safeguard <sessions-root> --backup-to <backup-dir>
+
+# 确认后执行
+dsh-session-doctor safeguard <sessions-root> --backup-to <backup-dir> --apply
+```
+
+顺序是刻意的，**不可颠倒**：
+
+1. **冷备**整棵 sessions 树到 `<backup-dir>`（保留结构 + 逐文件 sha256 校验 + 写 manifest）
+2. **体检**，列出损坏会话
+3. **修复**每个损坏文件（每个文件**仍然**各自留 `.bak`，双保险）
+4. **回读校验**：重扫一遍，0 失败才算通过
+
+> ⚠️ **冷备失败一律中止，绝不进入修复** —— 这是这个命令存在的理由：
+> 在"要动好几个文件"的场景里，你必须先有一条全局退路。
+> 修之前那一刻的整库快照在 `<backup-dir>/doctor-backup-manifest.json` 里，
+> 记录了每个文件的字节数与 sha256。
+
+与 `dsh-session-backup` 的分工：那个包做的是**长期/增量冷备**（历史归档、可反复刷新）；
+`safeguard` 做的是**动手前的就地快照**（一次性、与本次修复绑定、带校验清单）。
+两者不冲突，可以都用。
+
 作为 DSH 插件（cordis 服务插件）的接缝在 `src/` 顶部预留：`scanSessionRoot`
 接受任意根目录，DSH profile 中可通过 `ctx.sessionPersistence` 定位真实根。
 
