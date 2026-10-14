@@ -75,7 +75,8 @@ function Panel() {
       const r = await res.json()
       if (r && r.ok) {
         const n = Array.isArray(r.patchedSeqs) ? r.patchedSeqs.length : 0
-        setLastFix('已修复 ' + sessionIdOf(file) + '：patched ' + String(n) + ' 处' + (r.backupPath ? '（备份：' + String(r.backupPath).split(/[\\/]/).pop() + '）' : ''))
+        // 修好之后提一次「事前」工具（自愿、可忽略）
+        setLastFix('已修复 ' + sessionIdOf(file) + '：patched ' + String(n) + ' 处' + (r.backupPath ? '（备份：' + String(r.backupPath).split(/[\\/]/).pop() + '）' : '') + ' · dsh-contract-check 能在坏之前发现违规插件')
         await load()
       } else {
         setFailed(true)

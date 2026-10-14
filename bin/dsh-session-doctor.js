@@ -7,6 +7,17 @@
 import { scanSessionFile, scanSessionRoot, repairSessionFile, blameSessionFile, blameSessionRoot } from "../src/index.js";
 import { safeguard, measureTree } from "../src/safeguard.js";
 
+/**
+ * 修好之后的那一句：把「救火」的用户指向「防火」的工具。
+ * 刻意只提一次、且只在**真的修了东西**之后提 —— 不是广告，是同一件事的两端。
+ */
+function printPreventionTip() {
+  console.log("");
+  console.log("提示：这类损坏几乎都来自某个插件的工具结果写坏了格式。");
+  console.log("      dsh-contract-check 能在坏之前把违规插件找出来（可选，不装不影响本工具）：");
+  console.log("      npm i -g dsh-contract-check");
+}
+
 function usage() {
   console.log(`dsh-session-doctor
 
@@ -105,6 +116,7 @@ async function main() {
       console.log(`PATCHED seqs: [${result.patchedSeqs}]`);
       if (result.backupPath) console.log(`BACKUP: ${result.backupPath}`);
       if (dryRun) console.log(`DRY-RUN: file not written`);
+      else printPreventionTip();
       return;
     }
     case "blame": {
@@ -154,6 +166,7 @@ async function main() {
       }
       console.log(`冷备：${r.backup.files} 文件 → ${r.backup.manifestPath}`);
       console.log(`修复：${r.repaired.length} 个文件`);
+      if (r.ok && r.repaired.length > 0) printPreventionTip();
       if (!r.ok) {
         console.error(`回读校验未通过：仍有 ${r.after.corrupt} 个损坏会话`);
         process.exitCode = 1;

@@ -37,6 +37,10 @@ tool-result block`。这正是开源的意义：外部参与者帮内核找到�
 | 事前（写路径守卫） | render 非数组 → 规范化，坏记录进不了日志 | DSH 内核补丁（P0-1） | 已提交上游 [Discussion #5647](https://github.com/deepseek-ai/deepseek-harness/discussions/5647) |
 | **实时（watch）** | 新写入违规即告警，不等下次加载 | **本插件 v1.1** | ✅ |
 | **事后（scan/repair）** | 扫描+备份+无损修复已坏会话 | **本插件 v1** | ✅ |
+| **事前·静态检查** | 在插件**写坏会话之前**发现契约违规（render 非数组、事件名越界） | [`dsh-contract-check`](https://github.com/imtokenxinluo/dsh-contract-check) | ✅ |
+
+> **三层互补，装不装互不影响**：`dsh-contract-check` 管「事前」（插件写坏之前就发现），
+> 本工具的 watch 管「实时」，scan/repair 管「事后」。
 
 内核补丁（P0-1/P0-3）的完整 before/after、测试与 Agent Note 见本仓库
 [`docs/upstream/`](docs/upstream/)，系统审查全貌见
