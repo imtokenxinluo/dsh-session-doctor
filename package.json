@@ -3,6 +3,19 @@
   "version": "0.2.2",
   "description": "Session doctor for DeepSeek Harness: scan stored session logs for load-blocking corruption (loader-mirror validation) and losslessly repair the supported shape drift (bare-string tool-result content → text blocks), with per-file backup. 会话体检与修复插件。",
   "license": "MIT",
+  "author": "imtokenxinluo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imtokenxinluo/dsh-session-doctor.git"
+  },
+  "homepage": "https://github.com/imtokenxinluo/dsh-session-doctor#readme",
+  "bugs": {
+    "url": "https://github.com/imtokenxinluo/dsh-session-doctor/issues"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
   "type": "module",
   "main": "src/index.js",
   "dsh": {
