@@ -5,6 +5,21 @@
 每次修复前自动备份。v1.2 起新增 **blame 事故归因**——快速判断
 "浏览器 / 软件 / DSH 突然关闭是不是大模型自己调用工具干的"。
 
+## 30 秒上手
+
+```bash
+dsh plugin --profile <你的 profile> add dsh-session-doctor
+```
+
+装完你会看到：
+
+- **设置 → 会话体检**：哪些会话的历史已损坏、坏在哪一条记录
+- 一键**无损修复**（修复前自动备份）；CLI 同样可用：
+  `dsh-session-doctor scan <sessions 目录>`、`dsh-session-doctor repair <file> --dry-run`
+- 常驻 watch：新的违规写入**当场告警**，不必等到"下次打开历史才发现全没了"
+
+**什么时候用**：DSH 报 `history unavailable` / 某会话打不开 / 怀疑某个插件写坏了日志。
+
 ## 背景：为什么要这个工具
 
 ### 一个会"失忆"的会话历史
